@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-            Log.i("====Info Handler===", context);
+            Log.i("====Handler Info===", context);
             info.setText(context);
         }
     };
