@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-            Log.i("====Handler Info===", context);
+            Log.i("====Info Handler===", context);
             info.setText(context);
         }
     };
@@ -64,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 String data = send_info.getText().toString();
                 Log.i("====Info===", data);
-                if (data != null) {
+                if (!data.isEmpty()) {
                     if (socket.isConnected()) {
                         if (!socket.isOutputShutdown()) {
                             try {
