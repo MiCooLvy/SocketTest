@@ -14,23 +14,23 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketException;
 
 public class MainActivity extends AppCompatActivity {
 
-    private EditText ip;
-    private EditText port;
+    final static String IP = "120.27.110.225";
+    final static int PORT = 30000;
+
     private EditText send_info;
-    private Button conn;
     private Button send;
     private TextView info;
 
     private Socket socket;
-    private BufferedReader in;
-    private BufferedWriter out;
 
     private String context;
 
@@ -38,8 +38,10 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-            Log.i("====Info Handler===", context);
-            info.setText(context);
+            if(msg.what == 0x11){
+                Bundle bundle = msg.getData();
+                info.append("Server: " + bundle.getString("msg")+"\n");
+            }
         }
     };
 
@@ -50,69 +52,14 @@ public class MainActivity extends AppCompatActivity {
 
         initViews();
 
-        conn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-                new myThread().start();
-
-            }
-        });
-
         send.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String data = send_info.getText().toString();
-                Log.i("====Info===", data);
-                if (!data.isEmpty()) {
-                    if (socket.isConnected()) {
-                        if (!socket.isOutputShutdown()) {
-                            try {
-                                out.write(data);
-                                out.flush();
-                                //out.close();
-                                Log.i("====Info socket===", data);
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                        } else {
-                            Log.i("====Warning===", "Output Shutdown");
-                        }
-                    } else {
-                        Log.i("====Warning===", "socket disconnected");
-                    }
-                }
+                context = send_info.getText().toString();
+                info.append("client: " + context + "\n");
+                new myThread(context).start();
             }
         });
-
-
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        try {
-            in.close();
-            out.close();
-            socket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void initClientSocket(String ip, int port) {
-
-        try {
-
-            socket = new Socket();
-            socket.connect(new InetSocketAddress(ip,port),5000);
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
     }
 
     /**
@@ -120,49 +67,60 @@ public class MainActivity extends AppCompatActivity {
      */
     private void initViews() {
 
-        ip = (EditText) findViewById(R.id.edit_ip);
-        port = (EditText) findViewById(R.id.edit_port);
         send_info = (EditText) findViewById(R.id.edit_send);
-        conn = (Button) findViewById(R.id.btn_conn);
         send = (Button) findViewById(R.id.btn_send);
         info = (TextView) findViewById(R.id.txt_info);
 
     }
 
-    class myThread extends Thread{
+    class myThread extends Thread {
+
+        private String context;
+        private String buffer;
+
+        public myThread(String context){
+            this.context = context;
+        }
 
         @Override
         public void run() {
-            String rm_ip = ip.getText().toString();
-            int rm_port = Integer.parseInt(port.getText().toString());
 
-            initClientSocket(rm_ip, rm_port);
+            Message msg = new Message();
+            msg.what = 0x11;
+            Bundle bundle = new Bundle();
+            bundle.clear();
+            try{
+                socket = new Socket();
+                socket.connect(new InetSocketAddress(IP, PORT),5000);
 
-            try {
-                    if (!socket.isClosed()) {
-                        if (socket.isConnected()) {
-                            if (!socket.isInputShutdown()) {
-                                while((context = in.readLine()) != null) {
-                                    conn.setClickable(false);
-                                    context += "\n";
-                                    Log.i("====getInfo===", context);
-                                    handler.sendMessage(handler.obtainMessage());
-                                }
-                            } else {
-                                Log.i("====Warning===", "Input ShutDown");
-                            }
-                        } else {
-                            Log.i("====Warning===", "socket disconnected");
-                            conn.setClickable(true);
-                        }
-                    } else {
-                        Log.i("====Warning===", "socket closed");
-                    }
-            } catch (Exception e) {
-                e.printStackTrace();
+                OutputStream out = socket.getOutputStream();
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                String line = null;
+                buffer = "";
+                while((line = in.readLine()) != null){
+                    buffer = line + buffer;
+                }
+
+                out.write(context.getBytes("utf-8"));
+                out.flush();
+                bundle.putString("msg", buffer);
+                msg.setData(bundle);
+
+                handler.sendMessage(msg);
+
+                in.close();
+                out.close();
+                socket.close();
+
+            }catch (SocketException e){
+                bundle.putString("msg","服务器连接失败");
+                msg.setData(bundle);
+                handler.sendMessage(msg);
+            }catch (IOException eio){
+                eio.printStackTrace();
             }
-        }
 
+        }
     }
 
 }
